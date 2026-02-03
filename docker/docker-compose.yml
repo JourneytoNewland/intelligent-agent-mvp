@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: agent-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: agent_db
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agent-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: agent-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agent-network
+
+  # Langfuse (LLM 可观测性平台)
+  langfuse:
+    image: langfuse/langfuse:latest
+    container_name: agent-langfuse
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres123
+      DATABASE_NAME: langfuse
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: langfuse-secret-key-change-in-production
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - agent-network
+
+  # Jaeger (OpenTelemetry 追踪可视化，可选)
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: agent-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "5317:4317"  # OTLP gRPC receiver
+      - "5318:4318"  # OTLP HTTP receiver
+      - "16686:16686"  # Jaeger UI
+    networks:
+      - agent-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  agent-network:
+    driver: bridge
