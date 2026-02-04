@@ -6,6 +6,7 @@
 from typing import AsyncGenerator
 import asyncpg
 from redis.asyncio import Redis as AsyncRedis
+from fastapi import Depends
 from app.config import settings, Settings
 
 # Langfuse 是可选的（MVP 阶段不需要，与 Pydantic v2 冲突）
@@ -93,3 +94,38 @@ def get_config() -> Settings:
         Settings: 配置实例
     """
     return settings
+
+
+# ========== 新增工具依赖注入 ==========
+
+# 全局单例实例
+_excel_tool = None
+_api_tool = None
+_feedback_tool = None
+
+
+async def get_excel_tool():
+    """获取 Excel 工具实例"""
+    global _excel_tool
+    if _excel_tool is None:
+        from app.core.mcp.tools.excel import ExcelTool
+        _excel_tool = ExcelTool()
+    return _excel_tool
+
+
+async def get_api_tool():
+    """获取 API 数据源工具实例"""
+    global _api_tool
+    if _api_tool is None:
+        from app.core.mcp.tools.api_datasource import APIDatasourceTool
+        _api_tool = APIDatasourceTool()
+        # 注册常用 API（可选）
+        # from app.core.mcp.tools.api_datasource import setup_common_apis
+        # setup_common_apis(_api_tool)
+    return _api_tool
+
+
+async def get_feedback_tool(db_pool: asyncpg.Pool = Depends(get_database_pool)):
+    """获取反馈工具实例"""
+    from app.core.mcp.tools.feedback import FeedbackTool
+    return FeedbackTool(db_pool)

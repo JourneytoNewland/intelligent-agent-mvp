@@ -6,8 +6,7 @@ FastAPI 应用入口
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api.v1 import health
-from app.api.v1 import chat
+from app.api.v1 import health, chat, feedback, datasources
 import logging
 
 # 配置日志
@@ -28,7 +27,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
-        description="基于 FastAPI + LangGraph + MCP + Skills 的智能数据分析平台",
+        description="基于 FastAPI + LangGraph + MCP + Skills 的智能数据分析平台\n\n核心功能：\n- 智能意图识别（LLM + 规则双模式）\n- 参数提取（Function Calling + Few-shot）\n- 并行 Skill 执行\n- 用户反馈机制\n- 多数据源支持（Database, HTTP, Excel, API）",
         debug=settings.debug,
         docs_url="/docs",
         redoc_url="/redoc"
@@ -46,6 +45,8 @@ def create_app() -> FastAPI:
     # 注册路由
     app.include_router(health.router, prefix="/api/v1", tags=["Health"])
     app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])
+    app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["Feedback"])
+    app.include_router(datasources.router, prefix="/api/v1/datasources", tags=["Datasources"])
 
     # 启动事件
     @app.on_event("startup")
